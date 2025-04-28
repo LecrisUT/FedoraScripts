@@ -8,3 +8,4 @@ them to your own needs.
 To run them you can simply use `(pipx|hatch) run <script>`.
 
 - [`get_maintainers`](./get_maintainers.py): Get the package maintainers
+- [`add_packit_reverse_deps`](./add_packit_reverse_deps.py): Add new reverse dependencies for a packit project
