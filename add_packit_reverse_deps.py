@@ -11,6 +11,7 @@ import contextlib
 import dataclasses
 import io
 import re
+import shutil
 import subprocess
 from pathlib import Path
 import sys
@@ -27,6 +28,11 @@ PACKIT_YAML_REGEX = re.compile(r"\.?packit.ya?ml")
 packages = []
 branch = "rawhide"
 skip = []
+remove_paths = [
+    ".git*",
+    "README*",
+    "sources",
+]
 
 
 @dataclasses.dataclass
@@ -83,7 +89,7 @@ class PkgTemplate:
     default=skip,
 )
 def main(packages_file, workdir: Path, branch: str, skip: list[str]):
-    global packages
+    global packages, remove_paths
 
     for packit_file in workdir.iterdir():
         if PACKIT_YAML_REGEX.match(packit_file.name):
@@ -121,7 +127,13 @@ def main(packages_file, workdir: Path, branch: str, skip: list[str]):
             specfile_path = dep_root / dep_data["specfile_path"]
             if not specfile_path.exists():
                 subprocess.call(["fedpkg", "clone", dep], cwd=workdir)
-                subprocess.call(["rm", "-rf", f"{dep}/.git"], cwd=workdir)
+                dep_path = workdir / dep
+                for rm_pattern in remove_paths:
+                    for rm_path in dep_path.glob(rm_pattern):
+                        if rm_path.is_dir():
+                            shutil.rmtree(rm_path)
+                        else:
+                            rm_path.unlink()
 
     packit_yaml.dump(packit_data, packit_file)
 
