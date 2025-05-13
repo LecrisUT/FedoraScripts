@@ -13,6 +13,7 @@ import io
 import re
 import shutil
 import subprocess
+import typing
 from pathlib import Path
 import sys
 
@@ -53,6 +54,27 @@ class PkgTemplate:
             for field in dataclasses.fields(self)
             if not field.name.startswith("_")
         }
+
+
+def configure_package(
+    pkg: str, workdir: Path, packit_data: dict[str, typing.Any]
+) -> None:
+    # Add the appropriate `packages` field if missing
+    if pkg not in packit_data["packages"]:
+        packit_data["packages"][pkg] = PkgTemplate(pkg).to_dict()
+    # Add the source from rawhide if not already present
+    dep_data = packit_data["packages"][pkg]
+    dep_root = workdir / dep_data["paths"][0]
+    specfile_path = dep_root / dep_data["specfile_path"]
+    if not specfile_path.exists():
+        subprocess.call(["fedpkg", "clone", pkg], cwd=workdir)
+        dep_path = workdir / pkg
+        for rm_pattern in remove_paths:
+            for rm_path in dep_path.glob(rm_pattern):
+                if rm_path.is_dir():
+                    shutil.rmtree(rm_path)
+                else:
+                    rm_path.unlink()
 
 
 @click.command()
@@ -109,6 +131,11 @@ def main(packages_file, workdir: Path, branch: str, skip: list[str]):
     packit_yaml = YAML(typ="rt")
     packit_data = packit_yaml.load(packit_file)
 
+    # First pass prepare the main packages
+    for pkg in packages:
+        configure_package(pkg, workdir, packit_data)
+
+    # Second pass prepare dependencies
     for pkg in packages:
         with contextlib.redirect_stdout(io.StringIO()) as f:
             fedrq_cli(["wrsrc", pkg, "-F=source", f"-b={branch}"])
@@ -116,24 +143,9 @@ def main(packages_file, workdir: Path, branch: str, skip: list[str]):
         out: str
         rev_deps = out.splitlines()
         for dep in rev_deps:
-            if dep == pkg or dep in skip:
+            if dep in packages or dep in skip:
                 continue
-            # Add the appropriate `packages` field if missing
-            if dep not in packit_data["packages"]:
-                packit_data["packages"][dep] = PkgTemplate(dep).to_dict()
-            # Add the source from rawhide if not already present
-            dep_data = packit_data["packages"][dep]
-            dep_root = workdir / dep_data["paths"][0]
-            specfile_path = dep_root / dep_data["specfile_path"]
-            if not specfile_path.exists():
-                subprocess.call(["fedpkg", "clone", dep], cwd=workdir)
-                dep_path = workdir / dep
-                for rm_pattern in remove_paths:
-                    for rm_path in dep_path.glob(rm_pattern):
-                        if rm_path.is_dir():
-                            shutil.rmtree(rm_path)
-                        else:
-                            rm_path.unlink()
+            configure_package(dep, workdir, packit_data)
 
     packit_yaml.dump(packit_data, packit_file)
 
