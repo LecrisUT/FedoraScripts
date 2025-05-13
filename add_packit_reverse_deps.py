@@ -2,6 +2,7 @@
 # dependencies = [
 #   "ruamel.yaml",
 #   "fedrq",
+#   "click",
 # ]
 # ///
 from __future__ import annotations
