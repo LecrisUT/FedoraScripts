@@ -24,12 +24,33 @@ import bugzilla
 update_cahed_bugs: bool = True
 branch: str = "rawhide"
 packages: list[str] = []
-copr_project: str | None = None
-title: str | None = None
-body: str | None = None
-change_proposal: str | None = None
-change_slug: str | None = None
-blocks_bgz: int | None = None
+change_slug: str | None = "CMake4.0"
+copr_project: str | None = "lecris/cmake-4.0"
+change_proposal: str | None = "CMake 4.0"
+
+title: str = r"{package}: FTBFS with change proposal {change_proposal}"
+body: str = r"""
+Dear package maintainer,
+
+This is an automated bug created due to a FTBFS when rebuilding this package for the change proposal {change_proposal}.
+
+The rebuild is being tracked in https://copr.fedorainfracloud.org/coprs/{copr_owner}/{copr_project}/package/{package}.
+
+See https://fedoraproject.org/wiki/Changes/{change_slug} for more information on how to make the package compatible.
+
+More specifically, depending on the state of the project:
+- If it is actively maintained, please update the `cmake_minimum_required`, and instruct upstream to do so as well.
+  To minimize future maintenance, please add a higher bound as well, preferrably with the highest CMake version being
+  tested. You may use 4.0 as the higher bound as this is being tested in the tracked copr project.
+- If the project is not maintained, you may add `CMAKE_POLICY_VERSION_MINIMUM=3.5` as a CMake variable or environment
+  variable.
+
+You can check the build locally following the instructions in the change proposal, or submit your build to the tracking
+copr project.
+
+Let me know if you encounter any issues, or need any other help.
+"""
+blocks_bgz: int | None = 2376114
 
 copr_client = Client.create_from_config_file()
 bzapi = bugzilla.Bugzilla("bugzilla.redhat.com")

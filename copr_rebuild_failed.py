@@ -14,7 +14,7 @@ from copr.v3 import Client
 
 # User-defined variables
 branch: str = "rawhide"
-project: str | None = None
+project: str | None = "lecris/cmake-4.0"
 packages: list[str] = []
 
 client = Client.create_from_config_file()
