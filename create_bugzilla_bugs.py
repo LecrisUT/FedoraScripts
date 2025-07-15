@@ -33,9 +33,9 @@ from specfile import Specfile
 update_cahed_bugs: bool = True
 branch: str = "rawhide"
 packages: list[str] = []
-change_slug: str | None = "CMake4.0"
-copr_project: str | None = "lecris/cmake-4.0"
-change_proposal: str | None = "CMake 4.0"
+change_slug: str | None = "CMake_drop_install_vars"
+copr_project: str | None = "lecris/cmake-drop_vars"
+change_proposal: str | None = "CMake drop non-standard variables"
 
 title: str = r"{package}: FTBFS with change proposal {change_proposal}"
 body: str = r"""
@@ -47,19 +47,16 @@ The rebuild is being tracked in https://copr.fedorainfracloud.org/coprs/{copr_ow
 
 See https://fedoraproject.org/wiki/Changes/{change_slug} for more information on how to make the package compatible.
 
-More specifically, depending on the state of the project:
-- If it is actively maintained, please update the `cmake_minimum_required`, and instruct upstream to do so as well.
-  To minimize future maintenance, please add a higher bound as well, preferrably with the highest CMake version being
-  tested. You may use 4.0 as the higher bound as this is being tested in the tracked copr project.
-- If the project is not maintained, you may add `CMAKE_POLICY_VERSION_MINIMUM=3.5` as a CMake variable or environment
-  variable.
+Most likely the build failure is due to the project assuming the presence of `LIB_SUFFIX` as an input. You can provide
+this variable as shown in the change proposal. If possible, please open an issue in upstream and ask them to use
+`GNUInstallDirs` instead.
 
 You can check the build locally following the instructions in the change proposal, or submit your build to the tracking
 copr project.
 
 Let me know if you encounter any issues, or need any other help.
 """
-PR_title: str | None = r"{branch}: Fix FTBFS for {change_proposal}"
+PR_title: str | None = r"{branch}: Fix FTBFS for LIB_SUFFIX change"
 PR_message: str | None = r"""
 This is an automated PR trying to unblock {change_proposal}
 
@@ -73,7 +70,7 @@ Please check the status of that build before considering to merge this PR.
 More up-to-date builds may be available at:
 https://copr.fedorainfracloud.org/coprs/{copr_owner}/{copr_project}/package/{package}
 """
-blocks_bgz: int | None = 2376114
+blocks_bgz: int | None = 2376113
 
 copr_client = Client.create_from_config_file()
 bzapi = bugzilla.Bugzilla("bugzilla.redhat.com")
@@ -81,11 +78,11 @@ bzapi = bugzilla.Bugzilla("bugzilla.redhat.com")
 ftbfs_title = r"{package}: FTBFS in Fedora rawhide/f43"
 
 distgit_workdir: Path = Path() / "dist-git"
-distgit_branch: str | None = "cmake/4.0"
+distgit_branch: str | None = "cmake/drop_vars"
 delete_retired: bool = True
 try_fix: bool = True
 submit_pr: bool = True
-commit_msg: str | None = "Allow to build with CMake 4.0"
+commit_msg: str | None = "Specify LIB_SUFFIX"
 
 RETIRED_URL = "https://src.fedoraproject.org/rpms/{pkg}/raw/{branch}/f/dead.package"
 
@@ -416,18 +413,7 @@ def get_specfile(pkg: str) -> Specfile:
 
 
 def patch_pkg(pkg: str, specfile: Specfile) -> None:
-    global cache_data
-
-    bug_id = cache_data[pkg]["id"]
-    with specfile.sections() as sections:
-        sections.build.insert(0, f"# TODO: Please submit an issue to upstream (rhbz#{bug_id})")
-        sections.build.insert(1, "export CMAKE_POLICY_VERSION_MINIMUM=3.5")
-
-    if not specfile.has_autorelease:
-        specfile.bump_release()
-        specfile.add_changelog_entry(f"- {commit_msg} (rhbz#{bug_id})")
-
-    specfile.save()
+    raise NotImplementedError
 
 
 for pkg in packages:
