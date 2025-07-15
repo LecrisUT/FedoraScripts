@@ -28,14 +28,15 @@ import bugzilla
 import requests
 import requests.auth
 from specfile import Specfile
+from specfile.tags import Tag, Comments, Comment
 
 # User defined variables
 update_cahed_bugs: bool = True
 branch: str = "rawhide"
 packages: list[str] = []
-change_slug: str | None = "CMake4.0"
-copr_project: str | None = "lecris/cmake-4.0"
-change_proposal: str | None = "CMake 4.0"
+change_slug: str | None = "CMake_ninja_default"
+copr_project: str | None = "lecris/cmake-ninja"
+change_proposal: str | None = "CMake: Use ninja generator by default"
 
 title: str = r"{package}: FTBFS with change proposal {change_proposal}"
 body: str = r"""
@@ -47,19 +48,15 @@ The rebuild is being tracked in https://copr.fedorainfracloud.org/coprs/{copr_ow
 
 See https://fedoraproject.org/wiki/Changes/{change_slug} for more information on how to make the package compatible.
 
-More specifically, depending on the state of the project:
-- If it is actively maintained, please update the `cmake_minimum_required`, and instruct upstream to do so as well.
-  To minimize future maintenance, please add a higher bound as well, preferrably with the highest CMake version being
-  tested. You may use 4.0 as the higher bound as this is being tested in the tracked copr project.
-- If the project is not maintained, you may add `CMAKE_POLICY_VERSION_MINIMUM=3.5` as a CMake variable or environment
-  variable.
+More specifically, make sure you are using standard %cmake_* macros. If you find that there are hard dependencies on
+the generator even after such transition, please ping me for closer investigation.
 
 You can check the build locally following the instructions in the change proposal, or submit your build to the tracking
 copr project.
 
 Let me know if you encounter any issues, or need any other help.
 """
-PR_title: str | None = r"{branch}: Fix FTBFS for {change_proposal}"
+PR_title: str | None = r"{branch}: Fix FTBFS for CMake ninja generator"
 PR_message: str | None = r"""
 This is an automated PR trying to unblock {change_proposal}
 
@@ -73,7 +70,7 @@ Please check the status of that build before considering to merge this PR.
 More up-to-date builds may be available at:
 https://copr.fedorainfracloud.org/coprs/{copr_owner}/{copr_project}/package/{package}
 """
-blocks_bgz: int | None = 2376114
+blocks_bgz: int | None = 2376112
 
 copr_client = Client.create_from_config_file()
 bzapi = bugzilla.Bugzilla("bugzilla.redhat.com")
@@ -81,11 +78,11 @@ bzapi = bugzilla.Bugzilla("bugzilla.redhat.com")
 ftbfs_title = r"{package}: FTBFS in Fedora rawhide/f43"
 
 distgit_workdir: Path = Path() / "dist-git"
-distgit_branch: str | None = "cmake/4.0"
+distgit_branch: str | None = "cmake/ninja"
 delete_retired: bool = True
 try_fix: bool = True
 submit_pr: bool = True
-commit_msg: str | None = "Allow to build with CMake 4.0"
+commit_msg: str | None = "Allow to build with ninja generator"
 
 RETIRED_URL = "https://src.fedoraproject.org/rpms/{pkg}/raw/{branch}/f/dead.package"
 
@@ -419,9 +416,22 @@ def patch_pkg(pkg: str, specfile: Specfile) -> None:
     global cache_data
 
     bug_id = cache_data[pkg]["id"]
-    with specfile.sections() as sections:
-        sections.build.insert(0, f"# TODO: Please submit an issue to upstream (rhbz#{bug_id})")
-        sections.build.insert(1, "export CMAKE_POLICY_VERSION_MINIMUM=3.5")
+    with specfile.tags() as tags:
+        last_br_index = None
+        last_br_tag = None
+        for indx, tag in enumerate(tags):
+            if tag.name == "BuildRequires":
+                last_br_index = indx
+                last_br_tag = tag
+                if tag.value == "make":
+                    break
+        else:
+            assert last_br_index is not None
+            tag = Tag("BuildRequires", "make", last_br_tag._separator, Comments())
+            tags.insert(last_br_index + 1, tag)
+        tag.comments.append("Hard-code make dependency due to ninja-build failure")
+        tag.comments.append(f"https://fedoraproject.org/wiki/Changes/{change_slug}")
+        tag.comments.append(Comment("%define _cmake_generator \"Unix Makefiles\"", prefix=""))
 
     if not specfile.has_autorelease:
         specfile.bump_release()
