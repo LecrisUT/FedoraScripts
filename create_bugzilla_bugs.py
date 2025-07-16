@@ -86,12 +86,29 @@ def cache_bug(pkg: str, bug: bugzilla.base.Bug) -> None:
         json.dump(cache_file_data, f)
 
 
+def submit_rebuild(pkg: str) -> None:
+    global cache_data
+
+    if cache_data[pkg]['status'] != "CLOSED":
+        return
+    copr_client.build_proxy.create_from_distgit(
+        ownername=copr_owner,
+        projectname=copr_project,
+        packagename=pkg,
+        committish=branch,
+        buildopts={
+            "background": True,
+        },
+    )
+
+
 for pkg in packages:
     # Check the presence in cache file first
     if pkg in cache_data:
         if update_cahed_bugs:
             bug = bzapi.getbug(cache_data[pkg]["id"])
             cache_bug(pkg, bug)
+        submit_rebuild(pkg)
         print(f"Bug for {pkg} found in cache: {cache_data[pkg]['status']}")
         continue
 
@@ -114,6 +131,7 @@ for pkg in packages:
             print(f"Warning, {pkg} has more than 1 bug matching.")
         bug = bugs[0]
         cache_bug(pkg, bug)
+        submit_rebuild(pkg)
         print(f"Bug for {pkg} already exists: Cached result")
         continue
 
