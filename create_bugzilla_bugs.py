@@ -74,6 +74,12 @@ cache_data = cache_file_data.setdefault(
     {},
 )
 
+bug_state = {
+    "NEW": [],
+    "ASSIGNED": [],
+    "CLOSED": [],
+}
+
 
 def cache_bug(pkg: str, bug: bugzilla.base.Bug) -> None:
     global cache_data, cache_file_data, cache_file
@@ -86,20 +92,24 @@ def cache_bug(pkg: str, bug: bugzilla.base.Bug) -> None:
         json.dump(cache_file_data, f)
 
 
-def submit_rebuild(pkg: str) -> None:
-    global cache_data
+def check_bug_state(pkg: str) -> None:
+    global cache_data, bug_state
 
-    if cache_data[pkg]['status'] != "CLOSED":
-        return
-    copr_client.build_proxy.create_from_distgit(
-        ownername=copr_owner,
-        projectname=copr_project,
-        packagename=pkg,
-        committish=branch,
-        buildopts={
-            "background": True,
-        },
-    )
+    # Record the current package to the bug_state dict
+    bug_state.setdefault(cache_data[pkg]["status"], []).append(pkg)
+
+    # Rebuild if issue was closed. The initial filter should not be adding
+    # the package to the list if the package was not failing.
+    if cache_data[pkg]["status"] == "CLOSED":
+        copr_client.build_proxy.create_from_distgit(
+            ownername=copr_owner,
+            projectname=copr_project,
+            packagename=pkg,
+            committish=branch,
+            buildopts={
+                "background": True,
+            },
+        )
 
 
 for pkg in packages:
@@ -108,7 +118,7 @@ for pkg in packages:
         if update_cahed_bugs:
             bug = bzapi.getbug(cache_data[pkg]["id"])
             cache_bug(pkg, bug)
-        submit_rebuild(pkg)
+        check_bug_state(pkg)
         print(f"Bug for {pkg} found in cache: {cache_data[pkg]['status']}")
         continue
 
@@ -131,7 +141,7 @@ for pkg in packages:
             print(f"Warning, {pkg} has more than 1 bug matching.")
         bug = bugs[0]
         cache_bug(pkg, bug)
-        submit_rebuild(pkg)
+        check_bug_state(pkg)
         print(f"Bug for {pkg} already exists: Cached result")
         continue
 
@@ -154,3 +164,7 @@ for pkg in packages:
         )
     )
     cache_bug(pkg, bug)
+
+print("Overview:")
+for status, bug_packages in bug_state.items():
+    print(f"Status {status}: {len(bug_packages)}")
