@@ -23,34 +23,28 @@ import bugzilla
 # User defined variables
 update_cahed_bugs: bool = True
 branch: str = "rawhide"
-packages: list[str] = []
-change_slug: str | None = "CMake4.0"
-copr_project: str | None = "lecris/cmake-4.0"
-change_proposal: str | None = "CMake 4.0"
+packages: list[str] = [
 
-title: str = r"{package}: FTBFS with change proposal {change_proposal}"
+]
+change_slug: str | None = "DisableSTI"
+copr_project: str | None = None
+change_proposal: str | None = "Disablement of STI tests"
+
+title: str = r"{package}: STI tests will no longer be run in F43"
 body: str = r"""
 Dear package maintainer,
 
-This is an automated bug created due to a FTBFS when rebuilding this package for the change proposal {change_proposal}.
+This is an automated bug created due to the announced change proposal {change_proposal}.
 
-The rebuild is being tracked in https://copr.fedorainfracloud.org/coprs/{copr_owner}/{copr_project}/package/{package}.
+Your project still has STI tests under `tests/tests*.yml`, which will no longer be run soon. We suggest you
+migrate these tests to TMT format instead.
 
-See https://fedoraproject.org/wiki/Changes/{change_slug} for more information on how to make the package compatible.
+See https://fedoraproject.org/wiki/Changes/{change_slug} for more information, including a link to a migration
+guide.
 
-More specifically, depending on the state of the project:
-- If it is actively maintained, please update the `cmake_minimum_required`, and instruct upstream to do so as well.
-  To minimize future maintenance, please add a higher bound as well, preferrably with the highest CMake version being
-  tested. You may use 4.0 as the higher bound as this is being tested in the tracked copr project.
-- If the project is not maintained, you may add `CMAKE_POLICY_VERSION_MINIMUM=3.5` as a CMake variable or environment
-  variable.
-
-You can check the build locally following the instructions in the change proposal, or submit your build to the tracking
-copr project.
-
-Let me know if you encounter any issues, or need any other help.
+Feel free to reach out to us here or in #fedora-ci or #tmt matrix rooms if you need any help.
 """
-blocks_bgz: int | None = 2376114
+blocks_bgz: int | None = 2346261
 
 copr_client = Client.create_from_config_file()
 bzapi = bugzilla.Bugzilla("bugzilla.redhat.com")
