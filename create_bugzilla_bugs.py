@@ -23,34 +23,294 @@ import bugzilla
 # User defined variables
 update_cahed_bugs: bool = True
 branch: str = "rawhide"
-packages: list[str] = []
-change_slug: str | None = "CMake4.0"
-copr_project: str | None = "lecris/cmake-4.0"
-change_proposal: str | None = "CMake 4.0"
+packages: list[str] = [
+    "Lmod",
+    "NetworkManager",
+    "acpica-tools",
+    "alex",
+    "alsa-firmware",
+    "alsa-lib",
+    "alsa-plugins",
+    "anthy",
+    "attr",
+    "augeas",
+    "autotrace",
+    "avahi",
+    "bc",
+    "beakerlib",
+    "bitmap-fonts",
+    "blivet-gui",
+    "bolt",
+    "booth",
+    "breezy",
+    "brltty",
+    "byteman",
+    "ca-certificates",
+    "cabal-install",
+    "calc",
+    "corosync",
+    "corosync-qdevice",
+    "cpio",
+    "cracklib",
+    "cri-o",
+    "criu",
+    "cronie",
+    "crontabs",
+    "cryptsetup",
+    "ctags",
+    "culmus-fonts",
+    "cyrus-sasl",
+    "dash",
+    "dbus-glib",
+    "dbus-python",
+    "device-mapper-multipath",
+    "device-mapper-persistent-data",
+    "diffutils",
+    "dropwatch",
+    "efi-rpm-macros",
+    "ektype-mukta-fonts",
+    "electron-cash",
+    "etcd",
+    "fcoe-utils",
+    "fedora-repos",
+    "findutils",
+    "fontforge",
+    "fprintd",
+    "freeradius",
+    "fstrm",
+    "gawk",
+    "gfs2-utils",
+    "ghc",
+    "ghc-zlib",
+    "ghc9.0",
+    "ghc9.2",
+    "ghc9.4",
+    "gnome-calculator",
+    "golang-github-aliyun-cli",
+    "golang-github-dustinkirkland-petname",
+    "golang-github-haproxytech-dataplaneapi",
+    "google-croscore-fonts",
+    "google-crosextra-caladea-fonts",
+    "groff",
+    "gubbi-fonts",
+    "hostapd",
+    "hwdata",
+    "ibus-engine-gui-ci",
+    "ignition",
+    "initscripts",
+    "iproute",
+    "iprutils",
+    "ipset",
+    "iptables",
+    "iptraf-ng",
+    "irqbalance",
+    "iso-codes",
+    "japanese-bitmap-fonts",
+    "kacst-fonts",
+    "khmer-os-fonts",
+    "kmod",
+    "knot",
+    "knot-resolver",
+    "kurdit-unikurd-web-fonts",
+    "ladvd",
+    "langpacks",
+    "libblockdev",
+    "libconfig",
+    "libffi",
+    "libfprint",
+    "libgcrypt",
+    "libguestfs",
+    "libnbd",
+    "libnet",
+    "librabbitmq",
+    "libreswan",
+    "libspiro",
+    "libssh",
+    "libstoragemgmt",
+    "libtasn1",
+    "libuninameslist",
+    "libusb-compat-0.1",
+    "libusb1",
+    "libvarlink",
+    "lklug-fonts",
+    "lksctp-tools",
+    "lldpad",
+    "lldpd",
+    "llvm-test-suite",
+    "llvm11",
+    "llvm12",
+    "lorax-templates-rhel",
+    "lsscsi",
+    "lua",
+    "m4",
+    "mariadb-connector-odbc",
+    "mariadb10.11",
+    "marshalparser",
+    "memcached",
+    "mod_authnz_pam",
+    "mod_intercept_form_submit",
+    "mpfr",
+    "navilu-fonts",
+    "nbdkit",
+    "net-snmp",
+    "nkf",
+    "nmstate",
+    "ocaml",
+    "ocaml-augeas",
+    "ocaml-calendar",
+    "ocaml-cppo",
+    "ocaml-curses",
+    "ocaml-dune",
+    "ocaml-fileutils",
+    "ocaml-findlib",
+    "ocaml-gettext",
+    "ocaml-labltk",
+    "ocaml-libvirt",
+    "ocaml-ocamlbuild",
+    "oci-seccomp-bpf-hook",
+    "oflb-asana-math-fonts",
+    "omping",
+    "opal-prd",
+    "opencc",
+    "openhpi",
+    "openldap",
+    "openoffice-lv",
+    "opensc",
+    "openvpn",
+    "openvswitch",
+    "overpass-fonts",
+    "p11-kit",
+    "pacemaker",
+    "paktype-naqsh-fonts",
+    "paktype-tehreer-fonts",
+    "pam",
+    "patch",
+    "po4a",
+    "poetry",
+    "pyparted",
+    "pyproject-rpm-macros",
+    "pypy",
+    "pypy3.10",
+    "pypy3.11",
+    "python-APScheduler",
+    "python-ansi2html",
+    "python-augeas",
+    "python-avocado",
+    "python-cheetah",
+    "python-configshell",
+    "python-dasbus",
+    "python-docker",
+    "python-flit",
+    "python-flit-core",
+    "python-munkres",
+    "python-packaging",
+    "python-pidfile",
+    "python-pika",
+    "python-pip",
+    "python-poetry-core",
+    "python-rpm-generators",
+    "python-rpm-macros",
+    "python-rtslib",
+    "python-setuptools",
+    "python-setuptools-rust",
+    "python-setuptools_scm",
+    "python-toml",
+    "python-tox",
+    "python-tox-current-env",
+    "python-tox-uv",
+    "python-ufoLib2",
+    "python-virt-firmware",
+    "python-virtualenv",
+    "python3.10",
+    "python3.11",
+    "python3.12",
+    "python3.13",
+    "python3.13-flit-core",
+    "python3.14",
+    "python3.6",
+    "python3.9",
+    "qrencode",
+    "rpm",
+    "rpm-ostree",
+    "rust-add-determinism",
+    "saab-fonts",
+    "sbd",
+    "sed",
+    "sg3_utils",
+    "shadow-utils",
+    "shobhika-fonts",
+    "sil-abyssinica-fonts",
+    "smc-anjalioldlipi-fonts",
+    "snapd",
+    "sox",
+    "spausedd",
+    "squashfs-tools",
+    "stubby",
+    "sudo",
+    "sword",
+    "tar",
+    "targetcli",
+    "targetd",
+    "teckit",
+    "tibetan-machine-uni-fonts",
+    "trace-cmd",
+    "ttfautohint",
+    "ttmkfdir",
+    "udica",
+    "uglify-js",
+    "upower",
+    "usbguard",
+    "vhostmd",
+    "virt-p2v",
+    "virt-top",
+    "virt-v2v",
+    "virt-what",
+    "virtiofsd",
+    "volume_key",
+    "wide-dhcpv6",
+    "wpa_supplicant",
+    "wqy-microhei-fonts",
+    "wqy-unibit-fonts",
+    "xsimd",
+    "zip",
+]
+change_slug: str | None = "DisableSTI"
+copr_project: str | None = None
+change_proposal: str | None = "Disablement of STI tests"
 
-title: str = r"{package}: FTBFS with change proposal {change_proposal}"
+title: str = r"{package}: STI tests will no longer be run in F43"
 body: str = r"""
 Dear package maintainer,
 
-This is an automated bug created due to a FTBFS when rebuilding this package for the change proposal {change_proposal}.
+This is an automated bug created due to the announced change proposal {change_proposal}.
 
-The rebuild is being tracked in https://copr.fedorainfracloud.org/coprs/{copr_owner}/{copr_project}/package/{package}.
+Your project still has STI tests under `tests/tests*.yml`, which will no longer be run soon. We suggest you
+migrate these tests to TMT format instead.
 
-See https://fedoraproject.org/wiki/Changes/{change_slug} for more information on how to make the package compatible.
+In the simplest case when the STI tests is a simple wrapper around a `tests/run_tests.sh`, the migration would
+look like this:
+```
+$ tmt init
+$ rm tests/tests.yml
+$ cat <<EOF > ./plans.fmf
+summary: Run all smoke tests
+discover:
+  how: fmf
+execute:
+  how: tmt
+EOF
+$ cat <<EOF > ./tests/main.fmf
+summary: Smoke test
+test: ./run_tests.sh
+EOF
+```
 
-More specifically, depending on the state of the project:
-- If it is actively maintained, please update the `cmake_minimum_required`, and instruct upstream to do so as well.
-  To minimize future maintenance, please add a higher bound as well, preferrably with the highest CMake version being
-  tested. You may use 4.0 as the higher bound as this is being tested in the tracked copr project.
-- If the project is not maintained, you may add `CMAKE_POLICY_VERSION_MINIMUM=3.5` as a CMake variable or environment
-  variable.
+See https://fedoraproject.org/wiki/Changes/{change_slug} for more information, including a link to a migration
+guide.
 
-You can check the build locally following the instructions in the change proposal, or submit your build to the tracking
-copr project.
-
-Let me know if you encounter any issues, or need any other help.
+Feel free to reach out to us here or in #fedora-ci or #tmt matrix rooms if you need any help.
 """
-blocks_bgz: int | None = 2376114
+blocks_bgz: int | None = 2346261
 
 copr_client = Client.create_from_config_file()
 bzapi = bugzilla.Bugzilla("bugzilla.redhat.com")
