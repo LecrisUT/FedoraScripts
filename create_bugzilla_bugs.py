@@ -24,12 +24,24 @@ import bugzilla
 update_cahed_bugs: bool = True
 branch: str = "rawhide"
 packages: list[str] = []
-copr_project: str | None = None
-title: str | None = None
-body: str | None = None
+copr_project: str | None = "lecris/pybind11-3.0"
+title: str | None = r"{package}: FTBFS with pybind11 3.0"
+body: str | None = r"""
+Dear package maintainer,
+
+This is an automated bug created due to a FTBFS when rebuilding this package with pybind11 3.0.
+
+The rebuild is being tracked in https://copr.fedorainfracloud.org/coprs/{copr_owner}/{copr_project}/package/{package}.
+
+If upstream supports both pybind11 3.x and 2.x with the same codebase, feel free to update the package ahead of the
+pybind11 update and close this bug as desired. Otherwise please let us know about the incompatibility so that we can
+coordinate a side-tag update together.
+
+Let me know if you encounter any issues, or need any other help.
+"""
 change_proposal: str | None = None
 change_slug: str | None = None
-blocks_bgz: int | None = None
+blocks_bgz: int | None = 2367888
 
 copr_client = Client.create_from_config_file()
 bzapi = bugzilla.Bugzilla("bugzilla.redhat.com")
