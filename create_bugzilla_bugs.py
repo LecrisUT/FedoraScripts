@@ -87,6 +87,7 @@ def cache_bug(pkg: str, bug: bugzilla.base.Bug) -> None:
     cache_data[pkg] = {
         "id": bug.id,
         "status": bug.status if hasattr(bug, "status") else None,
+        "depends": bug.depends_on if hasattr(bug, "depends_on") else [],
     }
     with cache_file.open("w") as f:
         json.dump(cache_file_data, f)
@@ -95,12 +96,17 @@ def cache_bug(pkg: str, bug: bugzilla.base.Bug) -> None:
 def check_bug_state(pkg: str) -> None:
     global cache_data, bug_state
 
+    pkg_bug_state = cache_data[pkg]["status"]
+    if pkg_bug_state == "NEW":
+        if cache_data[pkg]["depends"]:
+            pkg_bug_state = "NEW (blocked)"
+
     # Record the current package to the bug_state dict
-    bug_state.setdefault(cache_data[pkg]["status"], []).append(pkg)
+    bug_state.setdefault(pkg_bug_state, []).append(pkg)
 
     # Rebuild if issue was closed. The initial filter should not be adding
     # the package to the list if the package was not failing.
-    if cache_data[pkg]["status"] == "CLOSED":
+    if pkg_bug_state == "CLOSED":
         copr_client.build_proxy.create_from_distgit(
             ownername=copr_owner,
             projectname=copr_project,
