@@ -92,15 +92,9 @@ def cache_bug(pkg: str, bug: bugzilla.base.Bug) -> None:
         "depends": bug.depends_on if hasattr(bug, "depends_on") else [],
         "assigned_to": bug.assigned_to if hasattr(bug, "assigned_to") else None,
     }
-    with cache_file.open("w") as f:
-        json.dump(cache_file_data, f)
 
-
-def check_bug_state(pkg: str) -> None:
-    global cache_data, bug_state
-
-    pkg_bug_state = cache_data[pkg]["status"]
-    if pkg_bug_state == "NEW":
+    # Refine status
+    if cache_data[pkg]["status"] == "NEW":
         ftbfs_bugs = bzapi.query(
             bzapi.build_query(
                 product="Fedora",
@@ -109,18 +103,25 @@ def check_bug_state(pkg: str) -> None:
             )
         )
         if cache_data[pkg]["depends"]:
-            pkg_bug_state = "NEW (blocked)"
+            cache_data[pkg]["status"] = "NEW (blocked)"
         elif ftbfs_bugs:
-            pkg_bug_state = "NEW (FTBFS)"
+            cache_data[pkg]["status"] = "NEW (FTBFS)"
         elif cache_data[pkg]["assigned_to"] == "extras-orphan@fedoraproject.org":
-            pkg_bug_state = "NEW (Orphan)"
+            cache_data[pkg]["status"] = "NEW (Orphan)"
+
+    with cache_file.open("w") as f:
+        json.dump(cache_file_data, f)
+
+
+def check_bug_state(pkg: str) -> None:
+    global cache_data, bug_state
 
     # Record the current package to the bug_state dict
-    bug_state.setdefault(pkg_bug_state, []).append(pkg)
+    bug_state.setdefault(cache_data[pkg]["status"], []).append(pkg)
 
     # Rebuild if issue was closed. The initial filter should not be adding
     # the package to the list if the package was not failing.
-    if pkg_bug_state == "CLOSED":
+    if cache_data[pkg]["status"] == "CLOSED":
         copr_client.build_proxy.create_from_distgit(
             ownername=copr_owner,
             projectname=copr_project,
