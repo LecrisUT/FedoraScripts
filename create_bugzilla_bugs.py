@@ -34,6 +34,8 @@ blocks_bgz: int | None = None
 copr_client = Client.create_from_config_file()
 bzapi = bugzilla.Bugzilla("bugzilla.redhat.com")
 
+ftbfs_title = r"{package}: FTBFS in Fedora rawhide/f43"
+
 assert title
 assert body
 
@@ -98,8 +100,17 @@ def check_bug_state(pkg: str) -> None:
 
     pkg_bug_state = cache_data[pkg]["status"]
     if pkg_bug_state == "NEW":
+        ftbfs_bugs = bzapi.query(
+            bzapi.build_query(
+                product="Fedora",
+                component=pkg,
+                short_desc=ftbfs_title.format(package=pkg),
+            )
+        )
         if cache_data[pkg]["depends"]:
             pkg_bug_state = "NEW (blocked)"
+        elif ftbfs_bugs:
+            pkg_bug_state = "NEW (FTBFS)"
 
     # Record the current package to the bug_state dict
     bug_state.setdefault(pkg_bug_state, []).append(pkg)
