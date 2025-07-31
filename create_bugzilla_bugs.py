@@ -90,6 +90,7 @@ def cache_bug(pkg: str, bug: bugzilla.base.Bug) -> None:
         "id": bug.id,
         "status": bug.status if hasattr(bug, "status") else None,
         "depends": bug.depends_on if hasattr(bug, "depends_on") else [],
+        "assigned_to": bug.assigned_to if hasattr(bug, "assigned_to") else None,
     }
     with cache_file.open("w") as f:
         json.dump(cache_file_data, f)
@@ -111,6 +112,8 @@ def check_bug_state(pkg: str) -> None:
             pkg_bug_state = "NEW (blocked)"
         elif ftbfs_bugs:
             pkg_bug_state = "NEW (FTBFS)"
+        elif cache_data[pkg]["assigned_to"] == "extras-orphan@fedoraproject.org":
+            pkg_bug_state = "NEW (Orphan)"
 
     # Record the current package to the bug_state dict
     bug_state.setdefault(pkg_bug_state, []).append(pkg)
