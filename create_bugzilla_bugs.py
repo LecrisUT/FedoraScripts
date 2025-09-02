@@ -23,13 +23,36 @@ import bugzilla
 # User defined variables
 update_cahed_bugs: bool = True
 branch: str = "rawhide"
-packages: list[str] = []
+packages: list[str] = [
+    "bandit",
+    "fapolicy-analyzer",
+    "python-aiolimiter",
+    "python-box",
+    "python-jinja2-cli",
+    "python-matrix-nio",
+    "python-nikola",
+    "python-rstcheck-core",
+    "python-sklearn-nature-inspired-algorithms",
+    "python-toml-adapt",
+    "python-usort",
+    "python-vulture",
+    "teampulls",
+]
 copr_project: str | None = None
-title: str | None = None
-body: str | None = None
-change_proposal: str | None = None
-change_slug: str | None = None
-blocks_bgz: int | None = None
+title: str | None = r"{package}: Remove python-toml dependency"
+body: str | None = r"""
+Dear package maintainer,
+
+This is an automated bug created to track the remaining packages that will be affected by the python-toml retirement
+following its orphanage.
+
+python-toml has been marked deprecated for a few release cycle, since the change proposal
+https://fedoraproject.org/wiki/Changes/{change_slug}. Please see the change proposal or the blocked bug for some tips
+on how to migrate to another dependency, recommended `tomllib` with `tomli` backport.
+"""
+change_proposal: str | None = "Deprecate python-toml"
+change_slug: str | None = "DeprecatePythonToml"
+blocks_bgz: int | None = 2392538
 
 copr_client = Client.create_from_config_file()
 bzapi = bugzilla.Bugzilla("bugzilla.redhat.com")
