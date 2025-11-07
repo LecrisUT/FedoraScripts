@@ -2,6 +2,8 @@
 # dependencies = [
 #   "copr",
 #   "bugzilla",
+#   "specfile",
+#   "requests",
 # ]
 # ///
 
@@ -13,12 +15,19 @@ This is primarily built to help create blocking bugs for a change proposal.
 
 from __future__ import annotations
 
+import functools
 import json
+import os
+import subprocess
+from configparser import ConfigParser
 from json import JSONDecodeError
 from pathlib import Path
 
 from copr.v3 import Client
 import bugzilla
+import requests
+import requests.auth
+from specfile import Specfile
 
 # User defined variables
 update_cahed_bugs: bool = True
@@ -29,12 +38,23 @@ title: str | None = None
 body: str | None = None
 change_proposal: str | None = None
 change_slug: str | None = None
+PR_title: str | None = None
+PR_message: str | None = None
 blocks_bgz: int | None = None
 
 copr_client = Client.create_from_config_file()
 bzapi = bugzilla.Bugzilla("bugzilla.redhat.com")
 
 ftbfs_title = r"{package}: FTBFS in Fedora rawhide/f43"
+
+distgit_workdir: Path = Path() / "dist-git"
+distgit_branch: str | None = None
+delete_retired: bool = True
+try_fix: bool = True
+submit_pr: bool = False
+commit_msg: str | None = None
+
+RETIRED_URL = "https://src.fedoraproject.org/rpms/{pkg}/raw/{branch}/f/dead.package"
 
 assert title
 assert body
@@ -86,12 +106,15 @@ bug_state = {
 def cache_bug(pkg: str, bug: bugzilla.base.Bug) -> None:
     global cache_data, cache_file_data, cache_file
 
-    cache_data[pkg] = {
-        "id": bug.id,
-        "status": bug.status if hasattr(bug, "status") else None,
-        "depends": bug.depends_on if hasattr(bug, "depends_on") else [],
-        "assigned_to": bug.assigned_to if hasattr(bug, "assigned_to") else None,
-    }
+    cache_data.setdefault(pkg, {})
+    cache_data[pkg].update(
+        {
+            "id": bug.id,
+            "status": bug.status if hasattr(bug, "status") else None,
+            "depends": bug.depends_on if hasattr(bug, "depends_on") else [],
+            "assigned_to": bug.assigned_to if hasattr(bug, "assigned_to") else None,
+        }
+    )
 
     # Refine status
     if cache_data[pkg]["status"] == "NEW":
@@ -108,6 +131,19 @@ def cache_bug(pkg: str, bug: bugzilla.base.Bug) -> None:
             cache_data[pkg]["status"] = "NEW (FTBFS)"
         elif cache_data[pkg]["assigned_to"] == "extras-orphan@fedoraproject.org":
             cache_data[pkg]["status"] = "NEW (Orphan)"
+        elif cache_data[pkg].get("PR_link"):
+            cache_data[pkg]["status"] = "NEW (PR submitted)"
+
+    if cache_data[pkg]["status"] == "CLOSED":
+        response = requests.get(RETIRED_URL.format(pkg=pkg, branch=branch))
+        if response.status_code == 200:
+            cache_data[pkg]["status"] = "CLOSED (Retired)"
+            if delete_retired:
+                copr_client.package_proxy.delete(
+                    ownername=copr_owner,
+                    projectname=copr_project,
+                    packagename=pkg,
+                )
 
     with cache_file.open("w") as f:
         json.dump(cache_file_data, f)
@@ -131,6 +167,223 @@ def check_bug_state(pkg: str) -> None:
                 "background": True,
             },
         )
+    elif try_fix and cache_data[pkg]["status"] == "NEW":
+        try:
+            prepare_distgit(pkg)
+        except Exception as exc:
+            print(f"Warn: Could not prepare distgit for package '{pkg}':\n{exc}")
+            return
+        if cache_data[pkg].get("failed_fix"):
+            print(f"Warn: Package '{pkg}' failed the auto-fix")
+            return
+        if not cache_data[pkg].get("fixed"):
+            try:
+                try_rebase(pkg)
+                specfile = get_specfile(pkg)
+                patch_pkg(pkg, specfile)
+                commit_patch(pkg)
+            except Exception as exc:
+                print(f"Warn: Could not fix specfile for package '{pkg}':\n{exc}")
+                cache_data[pkg]["failed_fix"] = True
+                with cache_file.open("w") as f:
+                    json.dump(cache_file_data, f)
+                return
+        cache_data[pkg]["fixed"] = True
+        with cache_file.open("w") as f:
+            json.dump(cache_file_data, f)
+        if submit_pr and pagure_token():
+            try:
+                pr_link = submit_patch(pkg)
+            except Exception as exc:
+                print(f"Failed to submit patch for package '{pkg}':\n{exc}")
+                return
+            cache_data[pkg]["PR_link"] = pr_link
+            cache_data[pkg]["status"] = "NEW (PR submitted)"
+            with cache_file.open("w") as f:
+                json.dump(cache_file_data, f)
+
+
+@functools.cache
+def fasid() -> str:
+    if (fedora_upn := Path.home() / ".fedora.upn").exists():
+        return fedora_upn.read_text().strip()
+    return os.getlogin()
+
+@functools.cache
+def pagure_token() -> str | None:
+    fedpkg_conf = Path.home() / ".config/rpkg/fedpkg.conf"
+    if not fedpkg_conf.exists():
+        return None
+    config = ConfigParser()
+    config.read(fedpkg_conf)
+    return config["fedpkg.distgit"]["token"]
+
+
+def prepare_distgit(pkg: str) -> None:
+    distgit_path = distgit_workdir / pkg
+    remote_branch = f"{fasid()}/{distgit_branch}"
+    if not distgit_path.exists():
+        distgit_workdir.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["fedpkg", "clone", pkg],
+            check=True,
+            cwd=distgit_workdir,
+        )
+    has_fork = subprocess.run(
+        ["git", "ls-remote", "-q", fasid()],
+        check=False,
+        cwd=distgit_path,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if has_fork.returncode != 0:
+        subprocess.run(
+            ["fedpkg", "fork"],
+            check=True,
+            cwd=distgit_path,
+        )
+    subprocess.run(
+        ["git", "fetch", "origin"],
+        check=True,
+        cwd=distgit_path,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ["git", "fetch", fasid()],
+        check=True,
+        cwd=distgit_path,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    local_branch_exists = subprocess.run(
+        ["git", "rev-parse", "--verify", distgit_branch],
+        check=False,
+        cwd=distgit_path,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if local_branch_exists.returncode == 0:
+        subprocess.run(
+            ["git", "checkout", distgit_branch],
+            check=True,
+            cwd=distgit_path,
+        )
+    else:
+        remote_branch_exists = subprocess.run(
+            ["git", "rev-parse", "--verify", remote_branch],
+            check=False,
+            cwd=distgit_path,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if remote_branch_exists.returncode == 0:
+            subprocess.run(
+                ["git", "switch", "-c", distgit_branch, remote_branch],
+                check=True,
+                cwd=distgit_path,
+            )
+        else:
+            subprocess.run(
+                ["git", "switch", "-c", distgit_branch, f"origin/{branch}"],
+                check=True,
+                cwd=distgit_path,
+            )
+
+def try_rebase(pkg: str) -> None:
+    distgit_path = distgit_workdir / pkg
+    rebase = subprocess.run(
+        ["git", "rebase", f"origin/{branch}"],
+        check=False,
+        cwd=distgit_path,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if rebase.returncode != 0:
+        subprocess.run(
+            ["git", "rebase", "--abort"],
+            check=True,
+            cwd=distgit_path,
+        )
+        raise RuntimeError(f"Failed to rebase '{pkg}'")
+
+def commit_patch(pkg: str) -> None:
+    global cache_data
+
+    bug_id = cache_data[pkg]["id"]
+
+    distgit_path = distgit_workdir / pkg
+    subprocess.run(
+        ["git", "commit", "-a", "-m", f"{commit_msg} (rhbz#{bug_id})"],
+        check=True,
+        cwd=distgit_path,
+    )
+
+
+def submit_patch(pkg: str) -> str:
+    distgit_path = distgit_workdir / pkg
+
+    subprocess.run(
+        ["git", "checkout", distgit_branch],
+        check=True,
+        cwd=distgit_path,
+    )
+    subprocess.run(
+        ["git", "push", fasid()],
+        check=True,
+        cwd=distgit_path,
+    )
+    copr_build = copr_client.build_proxy.create_from_distgit(
+        ownername=copr_owner,
+        projectname=copr_project,
+        packagename=pkg,
+        namespace=f"forks/{fasid()}",
+        committish=distgit_branch,
+        buildopts={
+            "background": True,
+        },
+    )
+    response = requests.post(
+        f"https://src.fedoraproject.org/api/0/rpms/{pkg}/pull-request/new",
+        headers={
+            "Authorization": f"token {pagure_token()}"
+        },
+        json={
+            "title": PR_title.format(
+                package=pkg,
+                branch=branch,
+                change_proposal=change_proposal,
+            ),
+            "branch_from": distgit_branch,
+            "branch_to": branch,
+            "repo_from": pkg,
+            "repo_from_username": fasid(),
+            "repo_from_namespace": "rpms",
+            "initial_comment": PR_message.format(
+                package=pkg,
+                change_proposal=change_proposal,
+                copr_owner=copr_owner,
+                copr_project=copr_project,
+                change_slug=change_slug,
+                branch=branch,
+                copr_build=copr_build,
+            )
+        }
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Failed to submit PR [{response.status_code}]:\n{response.json()}")
+    pr_id = response.json()["id"]
+    return f"https://src.fedoraproject.org/rpms/{pkg}/pull-request/{pr_id}"
+
+
+def get_specfile(pkg: str) -> Specfile:
+    specfile_path = distgit_workdir / pkg / f"{pkg}.spec"
+    specfile = Specfile(specfile_path)
+    return specfile
+
+
+def patch_pkg(pkg: str, specfile: Specfile) -> None:
+    raise NotImplementedError
 
 
 for pkg in packages:
